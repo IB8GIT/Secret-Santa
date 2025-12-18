@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>🎄 Secret Santa Wheel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: url("https://images.unsplash.com/photo-1608889175123-8ee1d77dc57b")
+        no-repeat center center fixed;
+      background-size: cover;
+      color: white;
+    }
+
+    .container {
+      background: rgba(0,0,0,0.65);
+      padding: 20px;
+      max-width: 420px;
+      margin: 30px auto;
+      border-radius: 15px;
+    }
+
+    h1 {
+      margin-top: 0;
+    }
+
+    input {
+      width: 90%;
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 10px;
+      border: none;
+      margin-bottom: 10px;
+    }
+
+    .pointer {
+      width: 0;
+      height: 0;
+      border-left: 15px solid transparent;
+      border-right: 15px solid transparent;
+      border-bottom: 25px solid red;
+      margin: 10px auto;
+    }
+
+    canvas {
+      display: block;
+      margin: 10px auto;
+      background: white;
+      border-radius: 50%;
+    }
+
+    button {
+      background-color: #2ecc71;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 25px;
+      font-size: 18px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    button:disabled {
+      background: gray;
+      cursor: not-allowed;
+    }
+
+    #result {
+      font-size: 20px;
+      margin-top: 15px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>🎁 Secret Santa</h1>
+    <p>One device = one spin</p>
+
+    <input id="spinnerName" placeholder="Enter your name" />
+
+    <div class="pointer"></div>
+    <canvas id="wheel" width="300" height="300"></canvas>
+
+    <button id="spinBtn" onclick="spinWheel()">Spin 🎡</button>
+
+    <div id="result"></div>
+  </div>
+
+<script>
+/* ================= CONFIG ================= */
+
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzpKF1beEmjYMDUNNBDwhDLeZSA5uiHzKltGghxq4nMO4zYiu2-7RXVANtJ1YaQ01gG2A/exec";
+
+const names = [
+  "Rakesh Kumar","Rita Singh","Ibrar Hussain","Dr Suresh Singh",
+  "Janak Tiwari","Chinmaya Pradhan","Ankit Yadav",
+  "Adarsh Prakash Pandey","Basit Bashir","Dinesh Kumar",
+  "Dilip Nehara","Tarun Bharti","Nitish Kumar","Manish Kumar",
+  "Ritik Srivastava","Rishi Kumar","Sarthak Singh",
+  "Mrityunjay Gupta","Anurag Mishra","Deepak Meena",
+  "Shubhanjali Srivastava"
+];
+
+const canvas = document.getElementById("wheel");
+const ctx = canvas.getContext("2d");
+
+let angle = 0;
+let spinning = false;
+
+/* =============== DEVICE ID ================= */
+
+function getDeviceId() {
+  let id = localStorage.getItem("secretSantaDeviceId");
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem("secretSantaDeviceId", id);
+  }
+  return id;
+}
+
+/* =============== DRAW WHEEL ================= */
+
+function drawWheel() {
+  ctx.clearRect(0, 0, 300, 300);
+  const slice = (2 * Math.PI) / names.length;
+
+  names.forEach((name, i) => {
+    const start = angle + i * slice;
+    const end = start + slice;
+
+    ctx.beginPath();
+    ctx.moveTo(150, 150);
+    ctx.arc(150, 150, 140, start, end);
+    ctx.fillStyle = i % 2 === 0 ? "#f39c12" : "#e67e22";
+    ctx.fill();
+
+    ctx.save();
+    ctx.translate(150, 150);
+    ctx.rotate(start + slice / 2);
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#000";
+    ctx.font = "14px Arial";
+    ctx.fillText(name, 130, 5);
+    ctx.restore();
+  });
+}
+
+/* =============== INITIAL LOAD ================= */
+
+drawWheel();
+
+if (localStorage.getItem("alreadySpun") === "YES") {
+  document.getElementById("spinBtn").disabled = true;
+  document.getElementById("result").innerText =
+    "🎄 You have already completed your Secret Santa spin!";
+}
+
+/* ================= SPIN ================= */
+
+function spinWheel() {
+  const spinnerName =
+    document.getElementById("spinnerName").value.trim();
+
+  if (!spinnerName) {
+    alert("Please enter your name");
+    return;
+  }
+
+  if (localStorage.getItem("alreadySpun") === "YES") {
+    alert("This device has already spun 🎄");
+    return;
+  }
+
+  if (spinning) return;
+  spinning = true;
+  document.getElementById("spinBtn").disabled = true;
+
+  let speed = Math.random() * 0.3 + 0.25;
+
+  const spin = setInterval(() => {
+    angle += speed;
+    speed *= 0.97;
+    drawWheel();
+
+    if (speed < 0.01) {
+      clearInterval(spin);
+      spinning = false;
+
+      const slice = (2 * Math.PI) / names.length;
+      const index =
+        names.length -
+        Math.floor(((angle % (2 * Math.PI)) / slice)) -
+        1;
+
+      const selected = names[index];
+
+      document.getElementById("result").innerText =
+        "🎁 Your Secret Santa is: " + selected;
+
+      localStorage.setItem("alreadySpun", "YES");
+
+      fetch(WEB_APP_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          deviceId: getDeviceId(),
+          spinnerName: spinnerName,
+          result: selected
+        })
+      });
+    }
+  }, 30);
+}
+</script>
+</body>
+</html>
